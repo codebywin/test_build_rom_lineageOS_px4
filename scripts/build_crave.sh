@@ -149,7 +149,47 @@ apply_patch() {
 # 7. Apply VCam patches for Android 16
 echo ">> Applying VCam & SELinux patches for Android 16..."
 apply_patch "frameworks/base" "vcam_pixel4_a16.patch"
-apply_patch "device/google/coral" "sepolicy_vcam_coral.patch"
+
+# Cài đặt trực tiếp SELinux policy cho VCam & Mic ảo vào device/google/coral (tránh lỗi git patch lệch dòng)
+if [ -d "device/google/coral" ]; then
+    echo ">> Configuring SELinux policy for VCam & Virtual Mic in device/google/coral..."
+    mkdir -p device/google/coral/sepolicy/private
+    mkdir -p device/google/coral/sepolicy/public
+
+    cat << 'EOF' > device/google/coral/sepolicy/public/vcam.te
+type vcam_data_file, file_type, data_file_type, core_data_file_type;
+EOF
+
+    cat << 'EOF' > device/google/coral/sepolicy/private/vcam.te
+# Allow all apps (untrusted, system, platform) to access VCAM files
+allow appdomain vcam_data_file:file { create read write open getattr setattr unlink map };
+allow appdomain vcam_data_file:dir { create read write open getattr add_name remove_name search };
+
+# Allow media framework services to access VCAM files
+allow mediaserver vcam_data_file:file { read open getattr map };
+allow mediaextractor vcam_data_file:file { read open getattr map };
+allow audioserver vcam_data_file:file { read open getattr map };
+allow hal_camera_default vcam_data_file:file { read open getattr map };
+
+# Allow shell (adb) to manage VCAM files
+allow shell vcam_data_file:file { create read write open getattr unlink rename setattr };
+allow shell vcam_data_file:dir { create read write open getattr add_name remove_name search };
+EOF
+
+    touch device/google/coral/sepolicy/private/file_contexts
+    if ! grep -q "vcam_data_file" device/google/coral/sepolicy/private/file_contexts; then
+        cat << 'EOF' >> device/google/coral/sepolicy/private/file_contexts
+
+# Virtual Camera & Virtual Mic files
+/data/local/tmp/vcam.*                          u:object_r:vcam_data_file:s0
+/data/local/tmp/vcam_.*                         u:object_r:vcam_data_file:s0
+/data/local/tmp/vcam(/.*)?                      u:object_r:vcam_data_file:s0
+EOF
+        echo "   [SUCCESS] Appended VCam rules to sepolicy/private/file_contexts"
+    else
+        echo "   [INFO] VCam rules already exist in sepolicy/private/file_contexts"
+    fi
+fi
 
 # 8. Release keys spoof in build system
 echo ">> Setting release-keys in build/make..."
@@ -221,7 +261,15 @@ echo ">> Sourcing build environment..."
 source build/envsetup.sh
 export LINEAGE_BUILDTYPE=RELEASE
 
-echo ">> Running lunch: $LUNCH_COMMAND"
+# Tự động chuyển đổi lunch kiểu cũ (lineage_flame-userdebug) sang breakfast flame userdebug nếu có
+if [[ "$LUNCH_COMMAND" =~ ^lunch\ lineage_([a-zA-Z0-9_]+)-(.*)$ ]]; then
+    DEV="${BASH_REMATCH[1]}"
+    TYPE="${BASH_REMATCH[2]}"
+    echo ">> Legacy lunch format detected ($LUNCH_COMMAND). Converting to Lineage breakfast: breakfast $DEV $TYPE"
+    LUNCH_COMMAND="breakfast $DEV $TYPE"
+fi
+
+echo ">> Running lunch/breakfast: $LUNCH_COMMAND"
 eval "$LUNCH_COMMAND"
 
 echo ">> Cleaning install artifacts: make installclean..."

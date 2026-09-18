@@ -161,12 +161,17 @@ jobs:
         ;;
         esac
 
-        if [[ ${{ github.event.inputs.PRODUCT_NAME }} == *_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != gsi_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != sdk_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != *_sprout ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi439_* ]] && [[ ${{ github.event.inputs.PRODUCT_NAME }} != Mi8937_* ]]; then
-          LUNCH="lunch ${{ github.event.inputs.PRODUCT_NAME }}-${{ github.event.inputs.BUILD_TYPE }}"
+        TARGET_PRODUCT="${{ github.event.inputs.PRODUCT_NAME }}"
+        DEVICE_TARGET="${TARGET_PRODUCT#lineage_}"
+
+        if [[ "${{ github.event.inputs.BASE_PROJECT }}" == LineageOS* ]] || [[ "${{ github.event.inputs.BASE_PROJECT }}" == "CyanogenMOD"* ]]; then
+          LUNCH="breakfast ${DEVICE_TARGET} ${{ github.event.inputs.BUILD_TYPE }}"
         elif [[ "${{ github.event.inputs.BASE_PROJECT }}" == "RisingOS 15 Revived" ]] && [[ "${{ github.event.inputs.BUILD_DIFFERENT_ROM }}" == "echo 'Build Starting!'" ]]; then
-            LUNCH="riseup ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
+          LUNCH="riseup ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
+        elif [[ "${TARGET_PRODUCT}" == *_* ]] && [[ "${TARGET_PRODUCT}" != gsi_* ]] && [[ "${TARGET_PRODUCT}" != sdk_* ]] && [[ "${TARGET_PRODUCT}" != *_sprout ]] && [[ "${TARGET_PRODUCT}" != Mi439_* ]] && [[ "${TARGET_PRODUCT}" != Mi8937_* ]]; then
+          LUNCH="lunch ${TARGET_PRODUCT}-${{ github.event.inputs.BUILD_TYPE }}"
         else
-            LUNCH="breakfast ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
+          LUNCH="breakfast ${{ github.event.inputs.PRODUCT_NAME }} ${{ github.event.inputs.BUILD_TYPE }}"
         fi
 
           if [[ "${{ github.event.inputs.LOCAL_MANIFEST }}" =~ \.xml(/)?$ ]]; then

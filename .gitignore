@@ -33,4 +33,7 @@ pyinstxtractor.py
 crave.bin
 crave.bin_extracted/
 commit-push.bat
+Magisk*
+*.img
+CHAT_HISTORY.md
 
