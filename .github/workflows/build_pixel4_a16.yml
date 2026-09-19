@@ -122,7 +122,7 @@ jobs:
         run: |
           mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          if [ -f .repo/manifest.xml ] && [ -d .repo/manifests.git ]; then
+          if [ -d .repo/manifests.git ]; then
             echo "Repo metadata already initialized, skipping repo init."
           else
             echo "Running $REPO_INIT"
