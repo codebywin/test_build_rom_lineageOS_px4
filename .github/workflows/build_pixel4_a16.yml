@@ -126,7 +126,7 @@ jobs:
             echo "Repo metadata already initialized, skipping repo init."
           else
             echo "Running $REPO_INIT"
-            bash -lc "$REPO_INIT"
+            eval "$REPO_INIT"
           fi
 
       - name: Start compilation through Crave
