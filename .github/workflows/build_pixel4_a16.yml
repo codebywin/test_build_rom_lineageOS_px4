@@ -73,24 +73,16 @@ jobs:
             echo "Custom Configuration Found!"
           fi
 
-          # 5. Manage Crave clone on server
+          # 5. Manage Crave workspace
+          mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          crave set --projectID "$PROJECTID" || true
           if [ "${{ github.event.inputs.CLEAN_BUILD }}" == "yes" ]; then
-            echo "Clean build requested: removing existing clone..."
-            if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null') || [ -d "$PROJECTFOLDER" ]; then
-              crave clone destroy -y $PROJECTFOLDER || echo "Error removing $PROJECTFOLDER"
-            fi
-            crave clone create --projectID $PROJECTID $PROJECTFOLDER || echo "Crave clone create failed!"
+            echo "Clean build requested: discarding current Crave workspace..."
+            crave discard --current-ws --projectID "$PROJECTID" -y || echo "No existing workspace to discard"
           else
-            echo "Non-clean build: checking if clone/folder exists..."
-            if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null'); then
-              echo "Clone $PROJECTFOLDER already exists, reusing existing clone!"
-            else
-              echo "Clone $PROJECTFOLDER not found, creating clone..."
-              crave clone create --projectID $PROJECTID $PROJECTFOLDER || echo "Crave clone create failed!"
-            fi
+            echo "Non-clean build: reusing the existing Crave workspace if one is available."
           fi
+          crave set --projectID "$PROJECTID" || true
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
@@ -128,12 +120,13 @@ jobs:
 
       - name: Set Crave repo project
         run: |
+          mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null') || [[ "${DCDEVSPACE}" == "1" ]]; then
-            echo "Using Crave Clone... skipping"
+          if [ -d .repo/manifests.git ]; then
+            echo "Repo metadata already initialized, skipping repo init."
           else
-            echo "Running $REPO_INIT"
-            $REPO_INIT
+            echo "Running repo init for $PROJECTFOLDER"
+            repo init -u https://github.com/accupara/los23.2.git -b lineage-23.2 --git-lfs --depth=1
           fi
 
       - name: Start compilation through Crave
@@ -232,7 +225,5 @@ jobs:
       - name: Destroy Crave Clone (if clean requested)
         if: ${{ always() && github.event.inputs.CLEAN_BUILD == 'yes' }}
         run: |
-          if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null') || [ -d "$PROJECTFOLDER" ]; then
-            crave clone destroy -y $PROJECTFOLDER || echo "Error removing $PROJECTFOLDER"
-          fi
-
+          echo "Clean build requested: ensuring the current Crave workspace is discarded."
+          crave discard --current-ws --projectID "$PROJECTID" -y || echo "Workspace was already absent"
