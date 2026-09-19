@@ -122,8 +122,12 @@ jobs:
         run: |
           mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          echo "Running $REPO_INIT"
-          bash -lc "$REPO_INIT"
+          if [ -f .repo/manifest.xml ] && [ -d .repo/manifests.git ]; then
+            echo "Repo metadata already initialized, skipping repo init."
+          else
+            echo "Running $REPO_INIT"
+            bash -lc "$REPO_INIT"
+          fi
 
       - name: Start compilation through Crave
         run: |
