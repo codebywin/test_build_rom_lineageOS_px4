@@ -74,6 +74,7 @@ jobs:
           fi
 
           # 5. Manage Crave workspace
+          mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
           crave set --projectID "$PROJECTID" || true
           if [ "${{ github.event.inputs.CLEAN_BUILD }}" == "yes" ]; then
@@ -124,6 +125,7 @@ jobs:
 
       - name: Set Crave repo project
         run: |
+          mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
           if [ -d .repo/repo ]; then
             echo "Repo metadata already initialized, skipping repo init."
