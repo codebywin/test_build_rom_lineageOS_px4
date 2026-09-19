@@ -76,18 +76,13 @@ jobs:
           # 5. Manage Crave workspace
           mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          crave set --projectID "$PROJECTID" || true
           if [ "${{ github.event.inputs.CLEAN_BUILD }}" == "yes" ]; then
             echo "Clean build requested: discarding current Crave workspace..."
             crave discard --current-ws --projectID "$PROJECTID" -y || echo "No existing workspace to discard"
           else
             echo "Non-clean build: reusing the existing Crave workspace if one is available."
-            if [ -d "$PROJECTFOLDER/.repo/repo" ]; then
-              echo "Local repo metadata already exists, reusing project folder."
-            else
-              echo "Local repo metadata not found yet; repo init will prepare the project folder in the next step."
-            fi
           fi
+          crave set --projectID "$PROJECTID" || true
         env:
           CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
           CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
@@ -127,12 +122,8 @@ jobs:
         run: |
           mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
-          if [ -d .repo/repo ]; then
-            echo "Repo metadata already initialized, skipping repo init."
-          else
-            echo "Running $REPO_INIT"
-            $REPO_INIT
-          fi
+          echo "Running $REPO_INIT"
+          $REPO_INIT
 
       - name: Start compilation through Crave
         run: |
