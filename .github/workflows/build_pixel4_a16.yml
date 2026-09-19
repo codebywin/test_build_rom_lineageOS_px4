@@ -1,0 +1,217 @@
+name: Build Pixel 4 - LineageOS 23.2 (1-Click)
+
+on:
+  workflow_dispatch:
+    inputs:
+      CLEAN_BUILD:
+        description: 'Clean build (wipe clone/out folder):'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - 'no'
+          - 'yes'
+      BUILD_COMMAND:
+        description: 'Command to compile:'
+        required: false
+        default: 'mka bacon'
+
+env:
+  PROJECTFOLDER: "/crave-devspaces/los23.2"
+  PROJECTID: "99"
+  REPO_INIT: "repo init -u https://github.com/accupara/los23.2.git -b lineage-23.2 --git-lfs --depth=1"
+  LUNCH: "breakfast flame userdebug"
+  LOCAL_MANIFEST: "https://raw.githubusercontent.com/codebywin/test_build_rom_lineageOS_px4/main/manifests/flame_los23.xml"
+  LOCAL_MANIFEST_BRANCH: "lineage-23.2"
+  DEVICE_NAME: "flame"
+  PRODUCT_NAME: "flame"
+  BASE_PROJECT: "LineageOS 23.2 (Android 16)"
+
+jobs:
+  build:
+    timeout-minutes: 360
+    name: Build Pixel 4 LineageOS 23.2 on Crave
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.repository_owner }}
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v4
+
+      - name: Configure Crave CLI & Environment
+        run: |
+          # 1. Install Crave CLI
+          curl -s https://raw.githubusercontent.com/accupara/crave/master/get_crave.sh | bash -s --
+          mkdir -p ${HOME}/bin/
+          mv ${PWD}/crave ${HOME}/bin/
+          sudo ln -sf /home/${USER}/bin/crave /usr/bin/crave
+          sudo chmod +x /usr/bin/crave
+
+          # 2. Setup Crave credentials from secrets
+          envsubst < ${PWD}/crave.conf.sample > ${HOME}/crave.conf
+          chmod 600 ${HOME}/crave.conf
+
+          # 3. Setup devspace symlink
+          mkdir -p devspace
+          sudo mkdir -p /crave-devspaces
+          sudo ln -sf ${PWD}/devspace /crave-devspaces
+          sudo chmod 777 /crave-devspaces
+
+          # 4. Prepare project folder and manifests
+          mkdir -p $PROJECTFOLDER/.repo/manifests
+          mkdir -p $PROJECTFOLDER/.crave
+          cp ${HOME}/crave.conf $PROJECTFOLDER/crave.conf
+          if [[ -z "${{ secrets.CUSTOM_YAML }}" ]]; then
+            cp configs/crave/crave.yaml.aosp $PROJECTFOLDER/.repo/manifests/crave.yaml
+            cp configs/crave/crave.yaml.aosp $PROJECTFOLDER/crave.yaml
+            cp configs/crave/crave.yaml.aosp $PROJECTFOLDER/.crave/crave.yaml
+            echo "No Custom Configuration Found, Using Template!"
+          else
+            echo "${{ secrets.CUSTOM_YAML }}" > $PROJECTFOLDER/.repo/manifests/crave.yaml
+            echo "${{ secrets.CUSTOM_YAML }}" > $PROJECTFOLDER/crave.yaml
+            echo "${{ secrets.CUSTOM_YAML }}" > $PROJECTFOLDER/.crave/crave.yaml
+            echo "Custom Configuration Found!"
+          fi
+
+          # 5. Manage Crave clone on server
+          cd $PROJECTFOLDER
+          crave set --projectID "$PROJECTID" || true
+          if [ "${{ github.event.inputs.CLEAN_BUILD }}" == "yes" ]; then
+            echo "Clean build requested: removing existing clone..."
+            if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null') || [ -d "$PROJECTFOLDER" ]; then
+              crave clone destroy -y $PROJECTFOLDER || echo "Error removing $PROJECTFOLDER"
+            fi
+            crave clone create --projectID $PROJECTID $PROJECTFOLDER || echo "Crave clone create failed!"
+          else
+            echo "Non-clean build: checking if clone/folder exists..."
+            if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null'); then
+              echo "Clone $PROJECTFOLDER already exists, reusing existing clone!"
+            else
+              echo "Clone $PROJECTFOLDER not found, creating clone..."
+              crave clone create --projectID $PROJECTID $PROJECTFOLDER || echo "Crave clone create failed!"
+            fi
+          fi
+        env:
+          CRAVE_USERNAME: ${{ secrets.CRAVE_USERNAME }}
+          CRAVE_TOKEN: ${{ secrets.CRAVE_TOKEN }}
+
+      - name: Set-up Git Credentials
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+
+      - name: Send Start Telegram Notification
+        continue-on-error: true
+        run: |
+          send_telegram_message() {
+            local message="$1"
+            curl -s -X POST \
+            https://api.telegram.org/bot$botToken/sendMessage \
+            -d chat_id=$chatId \
+            -d text="$message" \
+            -d parse_mode="Markdown"
+          }
+          send_telegram_message "🚀 *Build Pixel 4 Started!*%0AProject: LineageOS 23.2 (Android 16)%0ADevice: flame%0ACheck Progress: https://github.com/$(echo "${{ github.repository }}" | sed 's@_@\\_@g')/actions/runs/${{ github.run_id }}"
+        env:
+          chatId: ${{ secrets.TELEGRAM_TO }}
+          botToken: ${{ secrets.TELEGRAM_TOKEN }}
+
+      - name: Start compilation through Crave
+        run: |
+          cd $PROJECTFOLDER
+          jq '.projects = []' ~/crave.conf > tmp && mv tmp ~/crave.conf
+          crave set --projectID "$PROJECTID" || true
+          
+          CLEAN=""
+          if [ "${{ github.event.inputs.CLEAN_BUILD }}" == "yes" ]; then
+             CLEAN="--clean"
+          fi
+
+          PAID=""
+          if [[ -n "${{ secrets.PAID }}" ]]; then
+             echo "Paid Build... Tokens will be consumed."
+             PAID="--platform aosp-silver"
+          fi
+
+          BUILD_CMD="${{ github.event.inputs.BUILD_COMMAND }}"
+          if [ -z "$BUILD_CMD" ]; then
+             BUILD_CMD="mka bacon"
+          fi
+
+          echo "Starting Crave build for Pixel 4 (flame)..."
+          crave ${{ secrets.CRAVE_FLAGS }} run --projectID ${PROJECTID} --no-patch ${PAID} ${CLEAN} -- \
+            "curl -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/build_crave.sh -o /tmp/build_crave.sh && bash /tmp/build_crave.sh \"$LUNCH\" \"$BUILD_CMD\" \"$LOCAL_MANIFEST\" \"$LOCAL_MANIFEST_BRANCH\" \"${{ github.actor }}\" \"\" \"$REPO_INIT\" \"${{ github.sha }}\" \"${{ github.repository }}\""
+        timeout-minutes: 350
+
+      - name: Send Success Telegram Notification
+        if: ${{ success() }}
+        continue-on-error: true
+        run: |
+          send_telegram_message() {
+            local message="$1"
+            curl -s -X POST \
+            https://api.telegram.org/bot$botToken/sendMessage \
+            -d chat_id=$chatId \
+            -d text="$message" \
+            -d parse_mode="Markdown"
+          }
+          send_telegram_message "✅ *Build Pixel 4 Succeeded!*%0ADevice: flame%0ADownload: https://github.com/$(echo "${{ github.repository }}" | sed 's@_@\\_@g')/releases/tag/${{ github.run_id }}"
+        env:
+          chatId: ${{ secrets.TELEGRAM_TO }}
+          botToken: ${{ secrets.TELEGRAM_TOKEN }}
+
+      - name: Send Failure Telegram Notification
+        if: ${{ cancelled() || failure() }}
+        continue-on-error: true
+        run: |
+          send_telegram_message() {
+            local message="$1"
+            curl -s -X POST \
+            https://api.telegram.org/bot$botToken/sendMessage \
+            -d chat_id=$chatId \
+            -d text="$message" \
+            -d parse_mode="Markdown"
+          }
+          send_telegram_message "❌ *Build Pixel 4 Failed or Cancelled!*%0ADevice: flame%0ACheck log: https://github.com/$(echo "${{ github.repository }}" | sed 's@_@\\_@g')/actions/runs/${{ github.run_id }}"
+        env:
+          chatId: ${{ secrets.TELEGRAM_TO }}
+          botToken: ${{ secrets.TELEGRAM_TOKEN }}
+
+      - name: Stop Crave if cancelled
+        if: ${{ cancelled() }}
+        run: |
+          cd $PROJECTFOLDER
+          crave stop --all
+
+      - name: Upload build artifact(s)
+        continue-on-error: true
+        run: |
+          cd $PROJECTFOLDER
+          echo "${{ secrets.GITHUB_TOKEN }}" > token.txt
+          crave push token.txt -d $(crave ssh -- pwd | grep -v Select | sed -s 's/\r//g')/
+          crave ssh -- "export GH_UPLOAD_LIMIT="${{ secrets.GH_UPLOAD_LIMIT }}"; bash /opt/crave/github-actions/upload.sh '${{ github.run_id }}' '$DEVICE_NAME' '${{ github.repository }}' '$PRODUCT_NAME-${{ github.run_id }}' '${{ secrets.EXTRA_FILES }}'"
+
+      - name: Display error.log
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: |
+          cd $PROJECTFOLDER
+          crave ssh -- sleep 1
+          crave pull out/error.log || true
+          if [ -f out/error.log ]; then
+            echo "Displaying out/error.log:"
+            cat out/error.log
+          fi
+
+      - name: Upload to Telegram
+        continue-on-error: true
+        run: |
+          cd $PROJECTFOLDER
+          crave ssh -- "export TG_UPLOAD_LIMIT="${{ secrets.TG_UPLOAD_LIMIT }}"; bash /opt/crave/telegram/upload.sh '$DEVICE_NAME' '${{ secrets.EXTRA_FILES }}'"
+
+      - name: Destroy Crave Clone (if clean requested)
+        if: ${{ always() && github.event.inputs.CLEAN_BUILD == 'yes' }}
+        run: |
+          if grep -q "$PROJECTFOLDER" <(crave clone list --json 2>/dev/null | jq -r '.clones[]."Cloned At" 2>/dev/null') || [ -d "$PROJECTFOLDER" ]; then
+            crave clone destroy -y $PROJECTFOLDER || echo "Error removing $PROJECTFOLDER"
+          fi
