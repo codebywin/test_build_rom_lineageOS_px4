@@ -125,8 +125,8 @@ jobs:
           if [ -d .repo/manifests.git ]; then
             echo "Repo metadata already initialized, skipping repo init."
           else
-            echo "Running $REPO_INIT"
-            eval "$REPO_INIT"
+            echo "Running repo init for $PROJECTFOLDER"
+            repo init -u https://github.com/accupara/los23.2.git -b lineage-23.2 --git-lfs --depth=1
           fi
 
       - name: Start compilation through Crave
