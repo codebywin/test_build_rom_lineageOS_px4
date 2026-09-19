@@ -88,7 +88,7 @@ diff --git a/core/java/android/hardware/VcamCamera.java b/core/java/android/hard
 new file mode 100644
 --- /dev/null
 +++ b/core/java/android/hardware/VcamCamera.java
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,118 @@
 +package android.hardware;
 +
 +import android.graphics.SurfaceTexture;
@@ -122,7 +122,8 @@ new file mode 100644
 +        } catch (Throwable t) {
 +            Log.e(TAG, "VcamCamera create check error: " + t);
 +        }
-+        return new Camera(cameraId);
++        android.content.Context context = android.app.ActivityThread.currentApplication() != null ? android.app.ActivityThread.currentApplication().getApplicationContext() : null;
++        return open(cameraId, context, context != null ? android.hardware.camera2.CameraManager.getRotationOverride(context) : null);
 +    }
 +
 +    VcamCamera(int cameraId) {
