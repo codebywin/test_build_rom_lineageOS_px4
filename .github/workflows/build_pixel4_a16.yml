@@ -123,7 +123,7 @@ jobs:
           mkdir -p "$PROJECTFOLDER"
           cd $PROJECTFOLDER
           echo "Running $REPO_INIT"
-          $REPO_INIT
+          bash -lc "$REPO_INIT"
 
       - name: Start compilation through Crave
         run: |
