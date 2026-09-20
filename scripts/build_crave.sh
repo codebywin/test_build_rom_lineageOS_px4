@@ -105,6 +105,9 @@ git -C system/core clean -fd 2>/dev/null || true
 git -C device/google/coral reset --hard HEAD 2>/dev/null || true
 git -C device/google/coral clean -fd 2>/dev/null || true
 
+git -C device/google/flame reset --hard HEAD 2>/dev/null || true
+git -C device/google/flame clean -fd 2>/dev/null || true
+
 git -C build/make reset --hard HEAD 2>/dev/null || true
 git -C build/make clean -fd 2>/dev/null || true
 
@@ -150,25 +153,16 @@ apply_patch() {
 echo ">> Applying VCam & SELinux patches for Android 16..."
 apply_patch "frameworks/base" "vcam_pixel4_a16.patch"
 
-# Fix Camera.java & VcamCamera.java compatibility on Android 16
+# Fix Camera.java compatibility on Android 16 (remove final from overridden methods)
 CAM_JAVA="frameworks/base/core/java/android/hardware/Camera.java"
 if [ -f "$CAM_JAVA" ]; then
-    echo ">> Patching Camera.java for VcamCamera compatibility on Android 16..."
+    echo ">> Patching Camera.java method signatures for VcamCamera compatibility on Android 16..."
     sed -i 's/public native final void setPreviewTexture/public native void setPreviewTexture/g' "$CAM_JAVA"
     sed -i 's/public native final void startPreview/public native void startPreview/g' "$CAM_JAVA"
     sed -i 's/public final void release/public void release/g' "$CAM_JAVA"
     sed -i 's/public final void setPreviewDisplay/public void setPreviewDisplay/g' "$CAM_JAVA"
     sed -i 's/public final void stopPreview/public void stopPreview/g' "$CAM_JAVA"
     sed -i 's/public final void setPreviewCallback/public void setPreviewCallback/g' "$CAM_JAVA"
-    if ! grep -q "Camera(int cameraId)" "$CAM_JAVA"; then
-        sed -i '/public static Camera open(int cameraId)/i \    Camera(int cameraId) { this(cameraId, android.app.ActivityThread.currentApplication() != null ? android.app.ActivityThread.currentApplication().getApplicationContext() : null, android.app.ActivityThread.currentApplication() != null && android.app.ActivityThread.currentApplication().getApplicationContext() != null ? android.hardware.camera2.CameraManager.getRotationOverride(android.app.ActivityThread.currentApplication().getApplicationContext()) : null); }' "$CAM_JAVA"
-        echo "   [SUCCESS] Added Camera(int cameraId) constructor to Camera.java"
-    fi
-fi
-
-VCAM_JAVA="frameworks/base/core/java/android/hardware/VcamCamera.java"
-if [ -f "$VCAM_JAVA" ]; then
-    sed -i 's/return new Camera(cameraId);/android.content.Context context = android.app.ActivityThread.currentApplication() != null ? android.app.ActivityThread.currentApplication().getApplicationContext() : null; return open(cameraId, context, context != null ? android.hardware.camera2.CameraManager.getRotationOverride(context) : null);/g' "$VCAM_JAVA"
 fi
 
 # Cài đặt trực tiếp SELinux policy cho VCam & Mic ảo vào device/google/coral (tránh lỗi git patch lệch dòng)

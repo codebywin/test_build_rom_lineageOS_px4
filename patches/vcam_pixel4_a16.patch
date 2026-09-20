@@ -88,7 +88,7 @@ diff --git a/core/java/android/hardware/VcamCamera.java b/core/java/android/hard
 new file mode 100644
 --- /dev/null
 +++ b/core/java/android/hardware/VcamCamera.java
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,122 @@
 +package android.hardware;
 +
 +import android.graphics.SurfaceTexture;
@@ -111,23 +111,27 @@ new file mode 100644
 +    private Surface mAppSurface;
 +
 +    public static Camera create(int cameraId) {
++        android.content.Context context = android.app.ActivityThread.currentApplication() != null ? android.app.ActivityThread.currentApplication().getApplicationContext() : null;
++        CameraCompatibilityInfo compatInfo = context != null ? android.hardware.camera2.CameraManager.getRotationOverride(context) : null;
 +        try {
-+            if (VcamLicenseVerifier.isLicenseActive() && !VcamConfig.isVcamDisabled()) {
++            if (VcamLicenseVerifier.isLicenseActive() && !VcamConfig.isVcamDisabled() && context != null && compatInfo != null) {
 +                File videoFile = VcamConfig.getActiveVideoFile();
 +                if (videoFile != null) {
 +                    Log.i(TAG, "Creating VcamCamera instance for camera ID: " + cameraId);
-+                    return new VcamCamera(cameraId);
++                    return new VcamCamera(cameraId, context, compatInfo);
 +                }
 +            }
 +        } catch (Throwable t) {
 +            Log.e(TAG, "VcamCamera create check error: " + t);
 +        }
-+        android.content.Context context = android.app.ActivityThread.currentApplication() != null ? android.app.ActivityThread.currentApplication().getApplicationContext() : null;
-+        return open(cameraId, context, context != null ? android.hardware.camera2.CameraManager.getRotationOverride(context) : null);
++        if (context != null && compatInfo != null) {
++            return open(cameraId, context, compatInfo);
++        }
++        return null;
 +    }
 +
-+    VcamCamera(int cameraId) {
-+        super(cameraId);
++    VcamCamera(int cameraId, android.content.Context context, CameraCompatibilityInfo compatInfo) {
++        super(cameraId, context, compatInfo);
 +        this.mCameraId = cameraId;
 +        Log.i(TAG, "VcamCamera instance created for camera ID: " + cameraId);
 +    }
