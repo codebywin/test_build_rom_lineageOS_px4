@@ -29,7 +29,7 @@ env:
 
 jobs:
   build:
-    timeout-minutes: 360
+    timeout-minutes: 1200
     name: Build Pixel 4 LineageOS 23.2 on Crave
     runs-on: ubuntu-latest
     concurrency:
@@ -161,7 +161,7 @@ jobs:
           echo "Starting Crave build for Pixel 4 (flame)..."
           crave ${{ secrets.CRAVE_FLAGS }} run --projectID ${PROJECTID} --no-patch ${PAID} ${CLEAN} -- \
             "curl -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/build_crave.sh -o /tmp/build_crave.sh && bash /tmp/build_crave.sh \"$LUNCH\" \"$BUILD_CMD\" \"$LOCAL_MANIFEST\" \"$LOCAL_MANIFEST_BRANCH\" \"${{ github.actor }}\" \"\" \"$REPO_INIT\" \"${{ github.sha }}\" \"${{ github.repository }}\""
-        timeout-minutes: 350
+        timeout-minutes: 1150
 
       - name: Send Success Telegram Notification
         if: ${{ success() }}
