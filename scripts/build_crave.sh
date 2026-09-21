@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -e
 
+# Prevent interactive prompts from blocking non-interactive builds
+export GIT_TERMINAL_PROMPT=0
+git config --global user.name "${BUILD_USERNAME:-codebywin}" 2>/dev/null || true
+git config --global user.email "${BUILD_USERNAME:-codebywin}@users.noreply.github.com" 2>/dev/null || true
+git config --global color.ui false 2>/dev/null || true
+
 echo "=========================================================="
 echo " Starting Pixel 4 Build Script on Crave Devspace"
 echo " Date: $(date)"
