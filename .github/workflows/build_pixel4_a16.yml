@@ -158,9 +158,13 @@ jobs:
              BUILD_CMD="mka bacon"
           fi
 
+          echo "Stopping any stuck previous Crave jobs..."
+          crave stop --all 2>/dev/null || true
+
           echo "Starting Crave build for Pixel 4 (flame)..."
+          echo "Note: If build is queued on Crave, check https://foss.crave.io for live queue status."
           crave ${{ secrets.CRAVE_FLAGS }} run --projectID ${PROJECTID} --no-patch ${PAID} ${CLEAN} -- \
-            "curl -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/build_crave.sh -o /tmp/build_crave.sh && bash /tmp/build_crave.sh \"$LUNCH\" \"$BUILD_CMD\" \"$LOCAL_MANIFEST\" \"$LOCAL_MANIFEST_BRANCH\" \"${{ github.actor }}\" \"\" \"$REPO_INIT\" \"${{ github.sha }}\" \"${{ github.repository }}\""
+            "curl -f -sL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/build_crave.sh -o /tmp/build_crave.sh && bash /tmp/build_crave.sh \"$LUNCH\" \"$BUILD_CMD\" \"$LOCAL_MANIFEST\" \"$LOCAL_MANIFEST_BRANCH\" \"${{ github.actor }}\" \"\" \"$REPO_INIT\" \"${{ github.sha }}\" \"${{ github.repository }}\""
         timeout-minutes: 350
 
       - name: Send Success Telegram Notification
@@ -197,11 +201,11 @@ jobs:
           chatId: ${{ secrets.TELEGRAM_TO }}
           botToken: ${{ secrets.TELEGRAM_TOKEN }}
 
-      - name: Stop Crave if cancelled
-        if: ${{ cancelled() }}
+      - name: Stop Crave if cancelled or failed
+        if: ${{ always() && (cancelled() || failure()) }}
         run: |
           cd $PROJECTFOLDER
-          crave stop --all
+          crave stop --all || true
 
       - name: Upload build artifact(s)
         continue-on-error: true
